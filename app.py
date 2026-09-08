@@ -2,11 +2,9 @@ import streamlit as st
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-import urllib.request
-from io import BytesIO
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from fpdf import FPDF
 
 # Page configuration
@@ -17,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for dark mode theme
+# Custom CSS for standard professional theme
 st.markdown("""
 <style>
     .reportview-container {
@@ -48,34 +46,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("⚡ 한울생약 UV-C 살균 공정 실시간 시뮬레이터 v4.0")
-st.caption("건조 원단 및 포장재 선(선) 살균 공정 전용 웹 시뮬레이션 모델 (Render 배포용)")
-
-# Download NanumGothic font for Matplotlib and FPDF
-FONT_PATH = "NanumGothic-Regular.ttf"
-font_downloaded = False
-
-@st.cache_resource
-def download_font():
-    if not os.path.exists(FONT_PATH):
-        try:
-            url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
-            urllib.request.urlretrieve(url, FONT_PATH)
-            return True
-        except Exception as e:
-            return False
-    return True
-
-font_downloaded = download_font()
-
-# Apply Korean font to Matplotlib if downloaded
-if font_downloaded and os.path.exists(FONT_PATH):
-    from matplotlib import font_manager
-    try:
-        font_manager.fontManager.addfont(FONT_PATH)
-        plt.rcParams['font.family'] = 'NanumGothic'
-        plt.rcParams['axes.unicode_minus'] = False
-    except Exception as e:
-        pass
+st.caption("건조 원단 및 포장재 선(선) 살균 공정용 웹 시뮬레이션 모델 (Render 배포용)")
 
 # Sidebar for inputs
 st.sidebar.header("🛠️ 1. 설비 기하학 및 공정 변수")
@@ -116,12 +87,281 @@ targets = {
     "메틸로박테리움 (Methylobacterium)": {"limit": 17.0, "surrogate": "Pseudomonas aeruginosa (녹농균)"}
 }
 
+# Excel generation function (renders on client system, safe for Korean fonts)
+def generate_excel_report():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "UVC살균_성적서"
+    ws.views.sheetView[0].showGridLines = True
+    
+    font_family = "Malgun Gothic"
+    title_font = Font(name=font_family, size=14, bold=True, color="1F497D")
+    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
+    section_font = Font(name=font_family, size=11, bold=True, color="1F497D")
+    normal_font = Font(name=font_family, size=10)
+    bold_font = Font(name=font_family, size=10, bold=True)
+    
+    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+    sec_fill = PatternFill(start_color="E9EDF4", end_color="E9EDF4", fill_type="solid")
+    pass_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    fail_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+    
+    thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+    
+    ws.merge_cells("A1:D1")
+    ws["A1"] = "UVC 살균 공정 유효성 검증 성적서"
+    ws["A1"].font = title_font
+    ws["A1"].alignment = Alignment(horizontal="center")
+    ws.row_dimensions[1].height = 25
+    
+    ws["A3"] = "발급 일시:"
+    ws["B3"] = "2026-09-08"
+    ws["C3"] = "문서 번호:"
+    ws["D3"] = "SOP-UVC-04"
+    ws["A4"] = "공정 분류:"
+    ws["B4"] = "건조 원단 및 포장재 선(先) 살균 가공 공정"
+    
+    for r_num in [3, 4]:
+        ws[f"A{r_num}"].font = bold_font
+        ws[f"B{r_num}"].font = normal_font
+        if r_num == 3:
+            ws["C3"].font = bold_font
+            ws["D3"].font = normal_font
+            
+    ws["A6"] = "1. 설비 기하학 및 구동 세팅값"
+    ws["A6"].font = section_font
+    ws.merge_cells("A6:D6")
+    for col in range(1, 5):
+        ws.cell(row=6, column=col).fill = sec_fill
+        
+    params = [
+        ("살균 터널 길이 (y_tunnel)", f"{y_tunnel} mm", "설치 램프 수 (N_lamps)", f"{n_lamps} 개"),
+        ("물체-광원 이격 거리 (d_gap)", f"{d_gap} mm", "단일 램프 정격 전력 (p_lamp)", f"{p_lamp} W"),
+        ("원단 이송 속도 (v_speed)", f"{v_speed} m/s", "UVC 변환 효율 (eff_uvc)", f"{eff_uvc*100}%"),
+        ("램프 유효 발광 길이 (l_lamp)", f"{l_lamp} mm", "그림자 장벽 투과율 (t_shadow)", f"{t_shadow}"),
+        ("램프 노화/오염도 (t_aging)", f"{t_aging}", "로션 함침 감쇄율 (t_lotion)", "1.0 (선살균)")
+    ]
+    
+    curr_row = 7
+    for row_data in params:
+        ws.cell(row=curr_row, column=1, value=row_data[0]).font = bold_font
+        ws.cell(row=curr_row, column=2, value=row_data[1]).font = normal_font
+        ws.cell(row=curr_row, column=3, value=row_data[2]).font = bold_font
+        ws.cell(row=curr_row, column=4, value=row_data[3]).font = normal_font
+        for c in range(1, 5):
+            ws.cell(row=curr_row, column=c).border = thin_border
+        curr_row += 1
+        
+    curr_row += 1
+    ws.cell(row=curr_row, column=1, value="2. 물리 광학 연산 결과").font = section_font
+    ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=4)
+    for col in range(1, 5):
+        ws.cell(row=curr_row, column=col).fill = sec_fill
+        
+    curr_row += 1
+    results = [
+        ("가용 총 UVC 방사출력 (P_total)", f"{p_total:.1f} mW", "조사 노출시간 (t_exp)", f"{t_exp:.3f} 초"),
+        ("표면 자외선 최고 조도 (I_peak)", f"{i_peak:.3f} mW/cm²", "최종 유효 자외선 조사량 (Dose)", f"{dose:.2f} mJ/cm²")
+    ]
+    for row_data in results:
+        ws.cell(row=curr_row, column=1, value=row_data[0]).font = bold_font
+        ws.cell(row=curr_row, column=2, value=row_data[1]).font = normal_font
+        ws.cell(row=curr_row, column=3, value=row_data[2]).font = bold_font
+        ws.cell(row=curr_row, column=4, value=row_data[3]).font = normal_font
+        if "최종 유효" in row_data[2]:
+            ws.cell(row=curr_row, column=4).font = Font(name=font_family, size=10, bold=True, color="1F497D")
+        for c in range(1, 5):
+            ws.cell(row=curr_row, column=c).border = thin_border
+        curr_row += 1
+        
+    curr_row += 1
+    ws.cell(row=curr_row, column=1, value="3. 핵심 타겟 미생물 3종 살균 판정").font = section_font
+    ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=4)
+    for col in range(1, 5):
+        ws.cell(row=curr_row, column=col).fill = sec_fill
+        
+    curr_row += 1
+    headers = ["대상 미생물", "대체 균주", "기준 선량 (mJ/cm²)", "판정 결과"]
+    for c_idx, h_text in enumerate(headers, 1):
+        cell = ws.cell(row=curr_row, column=c_idx, value=h_text)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        
+    for name, data in targets.items():
+        curr_row += 1
+        ws.cell(row=curr_row, column=1, value=name).font = normal_font
+        ws.cell(row=curr_row, column=2, value=data["surrogate"]).font = normal_font
+        ws.cell(row=curr_row, column=3, value=data["limit"]).font = normal_font
+        ws.cell(row=curr_row, column=3).alignment = Alignment(horizontal="center")
+        
+        is_pass = dose >= data["limit"]
+        result_text = "🟢 적합 (PASS)" if is_pass else "🔴 부적합 (FAIL)"
+        cell_r = ws.cell(row=curr_row, column=4, value=result_text)
+        cell_r.font = bold_font
+        cell_r.alignment = Alignment(horizontal="center")
+        cell_r.fill = pass_fill if is_pass else fail_fill
+        
+        for c in range(1, 5):
+            ws.cell(row=curr_row, column=c).border = thin_border
+            
+    curr_row += 2
+    ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=4)
+    ws.cell(row=curr_row, column=1, value="UVC 살균 공정의 물리적 유효성 검증 결과를 성실히 보고합니다.").font = normal_font
+    ws.cell(row=curr_row, column=1).alignment = Alignment(horizontal="center")
+    
+    curr_row += 1
+    ws.merge_cells(start_row=curr_row, start_column=1, end_row=curr_row, end_column=4)
+    ws.cell(row=curr_row, column=1, value="발급기관: (주)한울생약 기술연구소").font = bold_font
+    ws.cell(row=curr_row, column=1).alignment = Alignment(horizontal="center")
+    
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    excel_file = io.BytesIO()
+    wb.save(excel_file)
+    excel_file.seek(0)
+    return excel_file.getvalue()
+
+# PDF generation function (uses built-in Helvetica, safe from Korean font errors)
+def generate_pdf_report():
+    class PDFReport(FPDF):
+        def header(self):
+            # Title banner
+            self.set_fill_color(31, 73, 125)
+            self.rect(0, 0, 210, 38, "F")
+            
+            # Text title
+            self.set_text_color(255, 255, 255)
+            self.set_font("Helvetica", "B", 15)
+            self.cell(0, 10, "UVC Process Validation Certificate", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.set_font("Helvetica", "", 9)
+            self.cell(0, 5, "Hanul Chemical Co., Ltd. - Quality Assurance Dept", align="C", new_x="LMARGIN", new_y="NEXT")
+            self.ln(12)
+            
+        def footer(self):
+            self.set_y(-15)
+            self.set_text_color(128, 128, 128)
+            self.set_font("Helvetica", "I", 8)
+            self.cell(0, 10, f"Page {self.page_no()}", align="C")
+            
+    pdf = PDFReport()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Metadata
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(100, 7, "Issue Date: 2026-09-08", new_x="RIGHT", new_y="TOP")
+    pdf.cell(0, 7, "Doc No: SOP-UVC-04", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 7, "Process Category: Dry Fabric & Packaging Pre-sterilization Process", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5)
+    
+    # Section 1
+    pdf.set_fill_color(233, 237, 244)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "1. Equipment & Operation Parameters", fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    
+    col_w = 48
+    val_w = 47
+    
+    params = [
+        ("Tunnel Length", f"{y_tunnel} mm", "Total Lamps", f"{n_lamps} ea"),
+        ("Distance to Object", f"{d_gap} mm", "Single Lamp Power", f"{p_lamp} W"),
+        ("Conveyor Speed", f"{v_speed} m/s", "UVC Conversion Eff.", f"{eff_uvc*100}%"),
+        ("Lamp Active Length", f"{l_lamp} mm", "Shadow Transmission", f"{t_shadow}"),
+        ("Lamp Aging Factor", f"{t_aging}", "Lotion Loss Factor", "1.0 (Excluded)")
+    ]
+    
+    for p in params:
+        pdf.cell(col_w, 7, p[0], border=1)
+        pdf.cell(val_w, 7, p[1], border=1)
+        pdf.cell(col_w, 7, p[2], border=1)
+        pdf.cell(val_w, 7, p[3], border=1, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(5)
+    
+    # Section 2
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "2. Physical & Optical Calculation", fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    
+    pdf.cell(col_w, 7, "Total UVC Output", border=1)
+    pdf.cell(val_w, 7, f"{p_total:.1f} mW", border=1)
+    pdf.cell(col_w, 7, "Exposure Duration", border=1)
+    pdf.cell(val_w, 7, f"{t_exp:.3f} sec", border=1, new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.cell(col_w, 7, "Peak Intensity", border=1)
+    pdf.cell(val_w, 7, f"{i_peak:.3f} mW/cm2", border=1)
+    pdf.cell(col_w, 7, "Effective UVC Dose", border=1)
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.cell(val_w, 7, f"{dose:.2f} mJ/cm2", border=1, new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.ln(5)
+    
+    # Section 3
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "3. Micro-organism Inactivation Evaluation", fill=True, new_x="LMARGIN", new_y="NEXT")
+    
+    # Headers
+    pdf.set_fill_color(31, 73, 125)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(50, 8, "Target Micro-organism", border=1, fill=True, align="C")
+    pdf.cell(55, 8, "Surrogate Strain", border=1, fill=True, align="C")
+    pdf.cell(40, 8, "Limit (mJ/cm2)", border=1, fill=True, align="C")
+    pdf.cell(45, 8, "Evaluation Result", border=1, fill=True, align="C", new_x="LMARGIN", new_y="NEXT")
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "", 9)
+    
+    eng_names = {
+        "버크홀데리아 (Burkholderia)": "Burkholderia",
+        "아세토박터-초산균 (Acetobacter)": "Acetobacter",
+        "메틸로박테리움 (Methylobacterium)": "Methylobacterium"
+    }
+    
+    for name, data in targets.items():
+        is_pass = dose >= data["limit"]
+        result_text = "PASS" if is_pass else "FAIL"
+        
+        pdf.cell(50, 8, eng_names.get(name, name), border=1)
+        pdf.cell(55, 8, data["surrogate"], border=1)
+        pdf.cell(40, 8, f"{data['limit']:.1f}", border=1, align="C")
+        
+        if is_pass:
+            pdf.set_fill_color(226, 239, 218)
+            pdf.set_text_color(46, 117, 89)
+        else:
+            pdf.set_fill_color(252, 228, 214)
+            pdf.set_text_color(192, 0, 0)
+            
+        pdf.cell(45, 8, result_text, border=1, fill=True, align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.set_text_color(0, 0, 0)
+        
+    pdf.ln(12)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 6, "Hanul Chemical Co., Ltd. Technology Research Institute", align="C", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8)
+    pdf.cell(0, 5, "This is an official computational verification statement based on FDA 21 CFR & EPA FIFRA standards.", align="C", new_x="LMARGIN", new_y="NEXT")
+    
+    return bytes(pdf.output())
+
 # Main Layout: 2 Columns
 col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("📊 실시간 광학 연산 결과")
     
+    # Custom styling with cards
     st.markdown(f"""
     <div style="display: flex; justify-content: space-around; margin-bottom: 20px;">
         <div class="metric-box" style="flex: 1; margin: 5px;">
@@ -149,7 +389,7 @@ with col1:
     for name, data in targets.items():
         limit = data["limit"]
         is_pass = dose >= limit
-        status_text = "🟢 합격 (PASS)" if is_pass else "🔴 불합격 (FAIL)"
+        status_text = "🟢 적합 (PASS)" if is_pass else "🔴 부적합 (FAIL)"
         status_color = "#2ECC71" if is_pass else "#E74C3C"
         
         st.markdown(f"""
@@ -181,8 +421,10 @@ with col1:
     """, unsafe_allow_html=True)
 
 with col2:
-    st.subheader("📈 속도 - 조사 선량 반비례 곡선 시각화")
+    # Title & Plot in clean English to prevent glyph-missing squares on the server-side Matplotlib
+    st.subheader("📈 Operating Point Tracking Graph")
     
+    # Plotting
     speeds = np.linspace(0.05, 2.0, 100)
     doses = [i_peak * (y_tunnel / (s * 1000)) * t_shadow * t_lotion * t_aging for s in speeds]
     
@@ -190,326 +432,47 @@ with col2:
     fig.patch.set_facecolor('#1E222B')
     ax.set_facecolor('#21252B')
     
-    ax.plot(speeds, doses, color='#4A90E2', label='이송 속도별 조사 선량', linewidth=2.5)
-    ax.scatter([v_speed], [dose], color='#2ECC71', s=150, zorder=5, label='현재 운전 동작점')
+    ax.plot(speeds, doses, color='#4A90E2', label='UVC Dose by Speed', linewidth=2.5)
+    ax.scatter([v_speed], [dose], color='#2ECC71', s=150, zorder=5, label='Current Operating Point')
     
-    ax.axhline(y=17.0, color='#E74C3C', linestyle='--', alpha=0.7, label='메틸로박테리움 사멸선 (17.0 mJ/cm²)')
-    ax.axhline(y=10.5, color='#F1C40F', linestyle='--', alpha=0.5, label='아세토박터 사멸선 (10.5 mJ/cm²)')
-    ax.axhline(y=7.4, color='#3498DB', linestyle='--', alpha=0.5, label='버크홀데리아 사멸선 (7.4 mJ/cm²)')
+    # Guidelines for targets
+    ax.axhline(y=17.0, color='#E74C3C', linestyle='--', alpha=0.7, label='Methylobacterium Limit (17.0 mJ/cm²)')
+    ax.axhline(y=10.5, color='#F1C40F', linestyle='--', alpha=0.5, label='Acetobacter Limit (10.5 mJ/cm²)')
+    ax.axhline(y=7.4, color='#3498DB', linestyle='--', alpha=0.5, label='Burkholderia Limit (7.4 mJ/cm²)')
     
-    ax.set_xlabel('원단 이송 속도 (m/s)', color='#FFFFFF', fontsize=10)
-    ax.set_ylabel('자외선 유효 조사량 (mJ/cm²)', color='#FFFFFF', fontsize=10)
-    ax.set_title('실시간 운전점 추적 그래프', color='#FFFFFF', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Conveyor Speed (m/s)', color='#FFFFFF', fontsize=10)
+    ax.set_ylabel('UVC Effective Dose (mJ/cm²)', color='#FFFFFF', fontsize=10)
+    ax.set_title('Real-time Operating Point Tracking', color='#FFFFFF', fontsize=12, fontweight='bold')
     
     ax.tick_params(colors='#FFFFFF')
     ax.legend(facecolor='#1E222B', edgecolor='#3E4451', labelcolor='#FFFFFF', loc='upper right', fontsize=8)
     ax.grid(True, color='#3E4451', linestyle=':', alpha=0.5)
-    
     ax.set_ylim(0, max(100, dose * 1.5))
     
     st.pyplot(fig)
     
-    st.subheader("📄 품질 검증 성적서 발급 (선택)")
+    # Report downloads section - Clean and objective
+    st.subheader("📄 공정 성적서 및 검증 보고서 발급")
     
-    # Excel Generation function
-    def generate_excel():
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "살균검증성적서"
-        ws.views.sheetView[0].showGridLines = True
-        
-        title_font = Font(name="Malgun Gothic", size=16, bold=True, color="1E395B")
-        header_font = Font(name="Malgun Gothic", size=11, bold=True, color="FFFFFF")
-        section_font = Font(name="Malgun Gothic", size=11, bold=True, color="1E395B")
-        regular_font = Font(name="Malgun Gothic", size=10)
-        bold_font = Font(name="Malgun Gothic", size=10, bold=True)
-        
-        header_fill = PatternFill(start_color="1E395B", end_color="1E395B", fill_type="solid")
-        section_fill = PatternFill(start_color="F2F4F7", end_color="F2F4F7", fill_type="solid")
-        pass_fill = PatternFill(start_color="E2F0D9", end_color="E2F0D9", fill_type="solid")
-        fail_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
-        
-        thin_side = Side(border_style="thin", color="D9D9D9")
-        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
-        
-        ws.column_dimensions['A'].width = 5
-        ws.column_dimensions['B'].width = 30
-        ws.column_dimensions['C'].width = 25
-        ws.column_dimensions['D'].width = 20
-        ws.column_dimensions['E'].width = 15
-        
-        ws.merge_cells("B2:E2")
-        ws["B2"] = "주식회사 한울생약 - UV-C 살균 유효성 검증 성적서"
-        ws["B2"].font = title_font
-        ws["B2"].alignment = Alignment(horizontal="center", vertical="center")
-        ws.row_dimensions[2].height = 40
-        
-        ws["B4"] = "공정 분류:"
-        ws["B4"].font = bold_font
-        ws["C4"] = "건조 원단 및 포장재 선(先) 살균 가공 공정"
-        ws["C4"].font = regular_font
-        
-        ws["D4"] = "발급 일시:"
-        ws["D4"].font = bold_font
-        ws["E4"] = "2026-09-08"
-        ws["E4"].font = regular_font
-        
-        ws["B5"] = "품질 규정:"
-        ws["B5"].font = bold_font
-        ws["C5"] = "FDA 21 CFR § 880.6600, EPA FIFRA, IUVA"
-        ws["C5"].font = regular_font
-        
-        for col in ["B", "C", "D", "E"]:
-            ws[f"{col}4"].border = thin_border
-            ws[f"{col}5"].border = thin_border
-            
-        ws.merge_cells("B7:E7")
-        ws["B7"] = "1. 설비 기하학 및 구동 변수"
-        ws["B7"].font = header_font
-        ws["B7"].fill = header_fill
-        ws["B7"].alignment = Alignment(indent=1)
-        
-        params = [
-            ("살균 터널 길이 (y_tunnel)", f"{y_tunnel} mm"),
-            ("물체-광원 이격 거리 (d_gap)", f"{d_gap} mm"),
-            ("컨베이어 이송 속도 (v_speed)", f"{v_speed} m/s"),
-            ("설치 UVC 총 램프 수", f"{n_lamps} 개"),
-            ("단일 램프 정격 전력", f"{p_lamp} W (효율 {eff_uvc*100}%)"),
-            ("램프 유효 발광 길이", f"{l_lamp} mm")
-        ]
-        
-        row = 8
-        for label, val in params:
-            ws[f"B{row}"] = label
-            ws[f"B{row}"].font = regular_font
-            ws[f"B{row}"].border = thin_border
-            ws[f"C{row}"] = val
-            ws[f"C{row}"].font = bold_font
-            ws[f"C{row}"].border = thin_border
-            ws[f"C{row}"].alignment = Alignment(horizontal="right")
-            row += 1
-            
-        ws.merge_cells(f"B{row}:E{row}")
-        ws[f"B{row}"] = "2. 물리 광학 연산 결과"
-        ws[f"B{row}"].font = header_font
-        ws[f"B{row}"].fill = header_fill
-        ws[f"B{row}"].alignment = Alignment(indent=1)
-        row += 1
-        
-        results = [
-            ("가용 총 UVC 방사 출력", f"{p_total:.1f} mW"),
-            ("조사 노출 시간", f"{t_exp:.3f} 초"),
-            ("표면 최고 조도", f"{i_peak:.3f} mW/cm²"),
-            ("최종 유효 자외선 조사량 (Dose)", f"{dose:.2f} mJ/cm²")
-        ]
-        
-        for label, val in results:
-            ws[f"B{row}"] = label
-            ws[f"B{row}"].font = regular_font
-            ws[f"B{row}"].border = thin_border
-            ws[f"C{row}"] = val
-            ws[f"C{row}"].font = bold_font
-            ws[f"C{row}"].border = thin_border
-            ws[f"C{row}"].alignment = Alignment(horizontal="right")
-            
-            if "Dose" in label:
-                ws[f"B{row}"].font = Font(name="Malgun Gothic", size=10, bold=True, color="1E395B")
-                ws[f"C{row}"].font = Font(name="Malgun Gothic", size=11, bold=True, color="2ECC71")
-                ws[f"B{row}"].fill = section_fill
-                ws[f"C{row}"].fill = section_fill
-            row += 1
-            
-        ws.merge_cells(f"B{row}:E{row}")
-        ws[f"B{row}"] = "3. 핵심 타겟 미생물 3종 사멸 검증"
-        ws[f"B{row}"].font = header_font
-        ws[f"B{row}"].fill = header_fill
-        ws[f"B{row}"].alignment = Alignment(indent=1)
-        row += 1
-        
-        ws[f"B{row}"] = "목표 미생물 명칭"
-        ws[f"B{row}"].font = bold_font
-        ws[f"B{row}"].border = thin_border
-        ws[f"C{row}"] = "학술 대체 균주"
-        ws[f"C{row}"].font = bold_font
-        ws[f"C{row}"].border = thin_border
-        ws[f"D{row}"] = "사멸 기준 선량"
-        ws[f"D{row}"].font = bold_font
-        ws[f"D{row}"].border = thin_border
-        ws[f"D{row}"].alignment = Alignment(horizontal="center")
-        ws[f"E{row}"] = "적합성 판정"
-        ws[f"E{row}"].font = bold_font
-        ws[f"E{row}"].border = thin_border
-        ws[f"E{row}"].alignment = Alignment(horizontal="center")
-        row += 1
-        
-        micro_results = [
-            ("버크홀데리아 (Burkholderia)", "B. pseudomallei", 7.4),
-            ("아세토박터-초산균 (Acetobacter)", "Brucella suis", 10.5),
-            ("메틸로박테리움 (Methylobacterium)", "Pseudomonas aeruginosa", 17.0)
-        ]
-        
-        for name, surrogate, limit in micro_results:
-            ws[f"B{row}"] = name
-            ws[f"B{row}"].font = regular_font
-            ws[f"B{row}"].border = thin_border
-            ws[f"C{row}"] = surrogate
-            ws[f"C{row}"].font = regular_font
-            ws[f"C{row}"].border = thin_border
-            ws[f"D{row}"] = f"{limit} mJ/cm²"
-            ws[f"D{row}"].font = regular_font
-            ws[f"D{row}"].border = thin_border
-            ws[f"D{row}"].alignment = Alignment(horizontal="center")
-            
-            is_ok = dose >= limit
-            ws[f"E{row}"] = "🟢 적합 (PASS)" if is_ok else "🔴 미달 (FAIL)"
-            ws[f"E{row}"].font = bold_font
-            ws[f"E{row}"].border = thin_border
-            ws[f"E{row}"].fill = pass_fill if is_ok else fail_fill
-            ws[f"E{row}"].alignment = Alignment(horizontal="center")
-            row += 1
-            
-        row += 1
-        ws.merge_cells(f"B{row}:E{row}")
-        ws[f"B{row}"] = f"종합 공정 안전 마진: {margin_ratio:.2f}배  |  최종 판정: {margin_status}"
-        ws[f"B{row}"].font = Font(name="Malgun Gothic", size=11, bold=True, color="1E395B")
-        ws[f"B{row}"].fill = section_fill
-        ws[f"B{row}"].alignment = Alignment(horizontal="center", vertical="center")
-        ws[f"B{row}"].border = thin_border
-        ws.row_dimensions[row].height = 30
-        
-        output = BytesIO()
-        wb.save(output)
-        output.seek(0)
-        return output
-
-    # PDF Generation function
-    def generate_pdf():
-        pdf = FPDF()
-        pdf.add_page()
-        
-        if font_downloaded and os.path.exists(FONT_PATH):
-            pdf.add_font("NanumGothic", "", FONT_PATH)
-            pdf.set_font("NanumGothic", size=10)
-            font_family = "NanumGothic"
-        else:
-            pdf.set_font("Helvetica", size=10)
-            font_family = "Helvetica"
-            
-        def clean_str(text):
-            return text.encode('utf-8', 'ignore').decode('utf-8')
-            
-        pdf.set_fill_color(30, 57, 91)
-        pdf.rect(10, 10, 190, 25, "F")
-        pdf.set_text_color(255, 255, 255)
-        pdf.set_font(font_family, size=15)
-        pdf.set_xy(10, 17)
-        pdf.cell(190, 10, clean_str("(주)한울생약 기술연구소 품질 보증 문서"), align="C")
-        
-        pdf.set_text_color(0, 0, 0)
-        pdf.set_font(font_family, size=13)
-        pdf.set_xy(10, 42)
-        pdf.cell(190, 10, clean_str("■ UV-C 살균 설비 엔지니어링 유효성 검증 성적서 (SOP-UVC-04)"), align="L")
-        
-        pdf.ln(10)
-        pdf.set_font(font_family, size=9)
-        pdf.cell(95, 6, clean_str("발급일자: 2026년 09월 08일"), border=0)
-        pdf.cell(95, 6, clean_str("공정분류: 건조 원단 및 포장재 선살균 공정"), border=0, align="R")
-        
-        pdf.ln(8)
-        pdf.set_draw_color(30, 57, 91)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(5)
-        
-        pdf.set_font(font_family, size=10)
-        pdf.set_fill_color(242, 244, 247)
-        pdf.cell(190, 8, clean_str("1. 설비 기하학 및 작동 구동 매개변수"), fill=True, ln=True)
-        pdf.set_font(font_family, size=9)
-        
-        pdf.cell(95, 7, clean_str(f" - 자외선 살균 터널 길이: {y_tunnel} mm"), border=1)
-        pdf.cell(95, 7, clean_str(f" - 물체와 광원 이격 거리: {d_gap} mm"), border=1, ln=True)
-        pdf.cell(95, 7, clean_str(f" - 컨베이어 이송 속도: {v_speed} m/s"), border=1)
-        pdf.cell(95, 7, clean_str(f" - 총 UVC 설치 램프 수: {n_lamps} 개"), border=1, ln=True)
-        pdf.cell(95, 7, clean_str(f" - 단일 램프 정격 전력: {p_lamp} W"), border=1)
-        pdf.cell(95, 7, clean_str(f" - UVC 변환 효율: {eff_uvc*100:.0f} %"), border=1, ln=True)
-        pdf.cell(190, 7, clean_str(f" - 자외선 램프 유효 발광 길이: {l_lamp} mm"), border=1, ln=True)
-        pdf.ln(5)
-        
-        pdf.set_font(font_family, size=10)
-        pdf.cell(190, 8, clean_str("2. 물리 광학 에너지 연산 데이터"), fill=True, ln=True)
-        pdf.set_font(font_family, size=9)
-        
-        pdf.cell(95, 7, clean_str(f" - 가용 총 UVC 방사 출력: {p_total:.1f} mW"), border=1)
-        pdf.cell(95, 7, clean_str(f" - 자외선 조사 노출 시간: {t_exp:.3f} 초"), border=1, ln=True)
-        pdf.cell(95, 7, clean_str(f" - 원단 표면 최고 조도: {i_peak:.3f} mW/cm²"), border=1)
-        pdf.set_fill_color(226, 240, 217)
-        pdf.cell(95, 7, clean_str(f" - 최종 유효 조사량 (Dose): {dose:.2f} mJ/cm²"), border=1, fill=True, ln=True)
-        pdf.ln(5)
-        
-        pdf.set_font(font_family, size=10)
-        pdf.set_fill_color(242, 244, 247)
-        pdf.cell(190, 8, clean_str("3. 타겟 병원성 유해 미생물 3종 사멸 검증"), fill=True, ln=True)
-        
-        pdf.set_font(font_family, size=9)
-        pdf.cell(60, 8, clean_str("목표 유해 미생물"), border=1, align="C")
-        pdf.cell(50, 8, clean_str("학술 대체 균주"), border=1, align="C")
-        pdf.cell(40, 8, clean_str("사멸 기준 선량"), border=1, align="C")
-        pdf.cell(40, 8, clean_str("적합성 판정"), border=1, align="C", ln=True)
-        
-        micro_results = [
-            ("버크홀데리아 (Burkholderia)", "B. pseudomallei", 7.4),
-            ("아세토박터-초산균 (Acetobacter)", "Brucella suis", 10.5),
-            ("메틸로박테리움 (Methylobacterium)", "Pseudomonas aeruginosa", 17.0)
-        ]
-        
-        for name, surrogate, limit in micro_results:
-            is_ok = dose >= limit
-            pdf.cell(60, 7, clean_str(name), border=1)
-            pdf.cell(50, 7, clean_str(surrogate), border=1)
-            pdf.cell(40, 7, clean_str(f"{limit} mJ/cm²"), border=1, align="C")
-            
-            if is_ok:
-                pdf.set_fill_color(226, 240, 217)
-                pdf.cell(40, 7, clean_str("PASS (적합)"), border=1, align="C", fill=True, ln=True)
-            else:
-                pdf.set_fill_color(252, 228, 214)
-                pdf.cell(40, 7, clean_str("FAIL (부적합)"), border=1, align="C", fill=True, ln=True)
-                
-        pdf.ln(5)
-        
-        pdf.set_draw_color(30, 57, 91)
-        pdf.set_fill_color(242, 244, 247)
-        pdf.set_font(font_family, size=10)
-        pdf.cell(190, 10, clean_str(f"■ 종합 공정 안전 마진: {margin_ratio:.2f} 배  |  {margin_status}"), border=1, fill=True, align="C")
-        
-        pdf.ln(15)
-        pdf.set_font(font_family, size=8)
-        pdf.cell(190, 5, clean_str("본 문서는 한울생약 자외선 살균 수식 모델을 통해 실시간 검증되었으며, FDA 21 CFR § 880.6600 특별통제를 충족합니다."), align="C", ln=True)
-        pdf.cell(190, 5, clean_str("Quality Assurance Department | (주)한울생약 기술연구소"), align="C", ln=True)
-        
-        return pdf.output()
-
-    excel_btn_col, pdf_btn_col = st.columns(2)
+    # Create the reports
+    excel_bytes = generate_excel_report()
+    pdf_bytes = generate_pdf_report()
     
-    with excel_btn_col:
-        excel_data = generate_excel()
+    d_col1, d_col2 = st.columns(2)
+    with d_col1:
         st.download_button(
-            label="📥 고급 엑셀 성적서 다운로드 (.xlsx)",
-            data=excel_data,
+            label="📥 엑셀 형식 성적서 다운로드 (.xlsx)",
+            data=excel_bytes,
             file_name="hanul-uvc-validation-report.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
-    with pdf_btn_col:
-        try:
-            pdf_data = generate_pdf()
-            st.download_button(
-                label="📥 격조 높은 PDF 성적서 다운로드 (.pdf)",
-                data=bytes(pdf_data),
-                file_name="hanul-uvc-validation-report.pdf",
-                mime="application/pdf"
-            )
-        except Exception as e:
-            st.warning(f"PDF 생성 중 일시적 오류가 발생했습니다. (나눔고딕 폰트 미동기화): {str(e)}")
+    with d_col2:
+        st.download_button(
+            label="📥 PDF 형식 보고서 다운로드 (.pdf)",
+            data=pdf_bytes,
+            file_name="hanul-uvc-validation-report.pdf",
+            mime="application/pdf"
+        )
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #8A92A6; font-size: 12px;'>본 프로그램은 한울생약 연구소의 자외선 살균 수립 보고서와 100% 동일한 학술 표준 수식으로 작동합니다. | Source: FDA 21 CFR & EPA FIFRA</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #8A92A6; font-size: 12px;'>본 프로그램은 한울생약 연구소의 자외선 살균 수립 보고서와 동일한 물리적 연산 수식으로 작동합니다. | Source: FDA 21 CFR & EPA FIFRA</p>", unsafe_allow_html=True)
