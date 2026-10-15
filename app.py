@@ -137,6 +137,84 @@ st.markdown("""
     .stApp hr {
         border-color: #E2E8F0 !important;
     }
+
+    /* ===== 미생물 판정 카드 ===== */
+    .stApp .mc-card {
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        padding: 16px 18px !important;
+        margin-bottom: 12px !important;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04) !important;
+    }
+    .stApp .mc-card.pass { border-color: #BBF7D0 !important; }
+    .stApp .mc-card.fail { border-color: #FECACA !important; }
+    .stApp .mc-top {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+    }
+    .stApp .mc-card .mc-name {
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #000000 !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        line-height: 1.35 !important;
+    }
+    .stApp .mc-card .mc-sub {
+        margin: 4px 0 0 0 !important;
+        color: #000000 !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+    }
+    .stApp .mc-card .mc-badge {
+        flex-shrink: 0 !important;
+        display: inline-block !important;
+        padding: 4px 12px !important;
+        border-radius: 999px !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+    }
+    .stApp .mc-card .mc-badge.pass { background-color: #DCFCE7 !important; color: #15803D !important; }
+    .stApp .mc-card .mc-badge.fail { background-color: #FEE2E2 !important; color: #B91C1C !important; }
+    .stApp .mc-card .mc-bar {
+        margin-top: 14px !important;
+        height: 8px !important;
+        background-color: #F1F5F9 !important;
+        border-radius: 999px !important;
+        overflow: hidden !important;
+    }
+    .stApp .mc-card .mc-fill { height: 100% !important; border-radius: 999px !important; }
+    .stApp .mc-card .mc-fill.pass { background-color: #16A34A !important; }
+    .stApp .mc-card .mc-fill.fail { background-color: #DC2626 !important; }
+    .stApp .mc-card .mc-meta {
+        display: flex !important;
+        justify-content: space-between !important;
+        margin: 6px 0 0 0 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: #000000 !important;
+    }
+    .stApp .mc-card .mc-meta span { color: #000000 !important; }
+
+    /* 종합 안전 마진 카드 */
+    .stApp .mg-card {
+        border-radius: 12px !important;
+        padding: 18px 20px !important;
+        margin-top: 16px !important;
+        text-align: center !important;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.06) !important;
+    }
+    .stApp .mg-card.pass { background-color: #F0FDF4 !important; border: 1px solid #86EFAC !important; }
+    .stApp .mg-card.fail { background-color: #FEF2F2 !important; border: 1px solid #FCA5A5 !important; }
+    .stApp .mg-card .mg-label { margin: 0 !important; color: #000000 !important; font-size: 14px !important; font-weight: 600 !important; }
+    .stApp .mg-card .mg-value { margin: 4px 0 !important; color: #000000 !important; font-size: 30px !important; font-weight: 800 !important; line-height: 1.2 !important; }
+    .stApp .mg-card .mg-status { margin: 0 !important; font-size: 18px !important; font-weight: 700 !important; }
+    .stApp .mg-card .mg-status.pass { color: #15803D !important; }
+    .stApp .mg-card .mg-status.fail { color: #B91C1C !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -475,38 +553,38 @@ with col1:
     for name, data in targets.items():
         limit = data["limit"]
         is_pass = dose >= limit
-        status_text = "🟢 적합 (PASS)" if is_pass else "🔴 부적합 (FAIL)"
-        status_color = "#16A34A" if is_pass else "#DC2626"
-        card_bg = "#F0FDF4" if is_pass else "#FEF2F2"
+        state = "pass" if is_pass else "fail"
+        badge_text = "적합 (PASS)" if is_pass else "부적합 (FAIL)"
+        ratio_pct = min(dose / limit, 1.0) * 100  # 기준 대비 달성률 (최대 100%)
         
-        st.markdown(f"""
-        <div style="background-color: {card_bg} !important; padding: 15px; border-radius: 8px; border: 1px solid #E2E8F0 !important; border-left: 5px solid {status_color} !important; margin-bottom: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <h4 style="margin: 0; color: #0F172A !important; font-weight: 700 !important; font-size: 16px;">{name}</h4>
-                    <p style="margin: 0; font-size: 13px; color: #000000 !important; font-weight: 600 !important;">대체 균주: {data['surrogate']}</p>
-                </div>
-                <div style="text-align: right;">
-                    <span style="font-weight: bold !important; color: {status_color} !important; font-size: 18px;">{status_text}</span>
-                    <p style="margin: 0; font-size: 12px; color: #000000 !important; font-weight: 700 !important;">기준: {limit} mJ/cm²</p>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        card_html = (
+            f'<div class="mc-card {state}">'
+            f'<div class="mc-top">'
+            f'<div>'
+            f'<div class="mc-name">{name}</div>'
+            f'<div class="mc-sub">대체 균주: {data["surrogate"]}</div>'
+            f'</div>'
+            f'<span class="mc-badge {state}">{badge_text}</span>'
+            f'</div>'
+            f'<div class="mc-bar"><div class="mc-fill {state}" style="width: {ratio_pct:.1f}%;"></div></div>'
+            f'<div class="mc-meta"><span>현재 {dose:.2f} mJ/cm²</span><span>기준 {limit} mJ/cm²</span></div>'
+            f'</div>'
+        )
+        st.markdown(card_html, unsafe_allow_html=True)
 
     # General margin and status
     margin_ratio = dose / 17.0
     margin_status = "🟢 안전 마진 충분 (PASS)" if margin_ratio >= 1.0 else "🔴 안전선 미달 (FAIL)"
-    margin_color = "#16A34A" if margin_ratio >= 1.0 else "#DC2626"
-    box_bg = "#F0FDF4" if margin_ratio >= 1.0 else "#FEF2F2"
+    mg_state = "pass" if margin_ratio >= 1.0 else "fail"
     
-    st.markdown(f"""
-    <div style="background-color: {box_bg} !important; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid {margin_color} !important; margin-top: 15px;">
-        <span style="color: #0F172A !important; font-size: 14px; font-weight: 700 !important;">종합 공정 안전 마진 배수: </span>
-        <strong style="color: #0F172A !important; font-size: 22px;">{margin_ratio:.2f} 배</strong>
-        <h3 style="color: {margin_color} !important; margin: 5px 0 0 0; font-weight: 700 !important;">{margin_status}</h3>
-    </div>
-    """, unsafe_allow_html=True)
+    margin_html = (
+        f'<div class="mg-card {mg_state}">'
+        f'<div class="mg-label">종합 공정 안전 마진 배수</div>'
+        f'<div class="mg-value">{margin_ratio:.2f} 배</div>'
+        f'<div class="mg-status {mg_state}">{margin_status}</div>'
+        f'</div>'
+    )
+    st.markdown(margin_html, unsafe_allow_html=True)
 
 with col2:
     st.subheader("📈 Operating Point Tracking Graph")
