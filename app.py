@@ -1,5 +1,6 @@
 import streamlit as st
 import math
+import re
 import matplotlib.pyplot as plt
 import numpy as np
 import io
@@ -61,8 +62,80 @@ st.markdown("""
     section[data-testid="stSidebar"] .stMarkdown h2, 
     section[data-testid="stSidebar"] .stMarkdown h3,
     section[data-testid="stSidebar"] label {
-        color: #0F172A !important;
+        color: #000000 !important;
         font-weight: 700 !important;
+    }
+
+    /* ===== 다크 테마용 밝은 글씨 → 검은색 강제 ===== */
+    /* 상단 헤더 바 */
+    header[data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+    }
+    header[data-testid="stHeader"] *,
+    [data-testid="stToolbar"] *,
+    [data-testid="stMainMenu"] * {
+        color: #000000 !important;
+        fill: #000000 !important;
+    }
+    /* 제목 / 부제목 / 본문 / 캡션 */
+    .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+    [data-testid="stHeading"], [data-testid="stHeading"] *,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] li,
+    [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] *,
+    .stCaption, .stApp small {
+        color: #000000 !important;
+    }
+    /* 헤딩 옆 앵커 링크 아이콘 */
+    [data-testid="stHeaderActionElements"] *, .stApp h1 a, .stApp h2 a, .stApp h3 a {
+        color: #000000 !important;
+        fill: #000000 !important;
+    }
+    /* 사이드바 전체 텍스트 */
+    section[data-testid="stSidebar"] *,
+    [data-testid="stSidebarHeader"] *,
+    [data-testid="stSidebarCollapseButton"] *,
+    [data-testid="stSidebarCollapsedControl"] *,
+    [data-testid="collapsedControl"] * {
+        color: #000000 !important;
+    }
+    [data-testid="stSidebarCollapseButton"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="collapsedControl"] svg {
+        fill: #000000 !important;
+    }
+    /* 위젯 라벨 */
+    [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *,
+    .stSlider label, .stSlider label * {
+        color: #000000 !important;
+    }
+    /* 슬라이더 현재값 · 최소/최대 눈금 숫자 */
+    [data-testid="stThumbValue"],
+    [data-testid="stSliderThumbValue"],
+    [data-testid="stTickBar"], [data-testid="stTickBar"] *,
+    [data-testid="stSliderTickBarMin"], [data-testid="stSliderTickBarMax"],
+    .stSlider [role="slider"] div {
+        color: #000000 !important;
+    }
+    /* 다운로드 버튼 */
+    [data-testid="stDownloadButton"] button,
+    .stDownloadButton button {
+        background-color: #FFFFFF !important;
+        color: #000000 !important;
+        border: 1px solid #CBD5E1 !important;
+    }
+    [data-testid="stDownloadButton"] button *,
+    .stDownloadButton button * {
+        color: #000000 !important;
+    }
+    [data-testid="stDownloadButton"] button:hover {
+        border-color: #1D4ED8 !important;
+        background-color: #F8FAFC !important;
+    }
+    /* 구분선 */
+    .stApp hr {
+        border-color: #E2E8F0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -411,11 +484,11 @@ with col1:
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <h4 style="margin: 0; color: #0F172A !important; font-weight: 700 !important; font-size: 16px;">{name}</h4>
-                    <p style="margin: 0; font-size: 13px; color: #475569 !important; font-weight: 600 !important;">대체 균주: {data['surrogate']}</p>
+                    <p style="margin: 0; font-size: 13px; color: #000000 !important; font-weight: 600 !important;">대체 균주: {data['surrogate']}</p>
                 </div>
                 <div style="text-align: right;">
                     <span style="font-weight: bold !important; color: {status_color} !important; font-size: 18px;">{status_text}</span>
-                    <p style="margin: 0; font-size: 12px; color: #334155 !important; font-weight: 700 !important;">기준: {limit} mJ/cm²</p>
+                    <p style="margin: 0; font-size: 12px; color: #000000 !important; font-weight: 700 !important;">기준: {limit} mJ/cm²</p>
                 </div>
             </div>
         </div>
@@ -487,4 +560,4 @@ with col2:
         )
 
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #64748B; font-size: 12px; font-weight: 500;'>본 프로그램은 한울생약 연구소의 자외선 살균 수립 보고서와 동일한 물리적 연산 수식으로 작동합니다. | Source: FDA 21 CFR & EPA FIFRA</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #000000 !important; font-size: 12px; font-weight: 500;'>본 프로그램은 한울생약 연구소의 자외선 살균 수립 보고서와 동일한 물리적 연산 수식으로 작동합니다. | Source: FDA 21 CFR & EPA FIFRA</p>", unsafe_allow_html=True)
